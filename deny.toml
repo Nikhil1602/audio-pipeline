@@ -1,0 +1,38 @@
+# cargo-deny: only permissive licences may enter the shipped libraries (checked in CI).
+# The SDK must stay usable in closed-source products; copyleft licences (GPL, LGPL, AGPL, MPL)
+# are therefore not allowed. System libraries loaded at run time (e.g. libpulse on Linux) are
+# not Rust dependencies and are not covered here; see docs/sdk.md.
+
+[graph]
+all-features = false
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "Unlicense",
+    "Unicode-3.0",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+# The workspace's own crates (publish = false) are MIT OR Apache-2.0 too.
+ignore = true
+
+[bans]
+multiple-versions = "allow"
+
+[advisories]
+# Security advisories are reported, not enforced here (they change daily).
+unmaintained = "none"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

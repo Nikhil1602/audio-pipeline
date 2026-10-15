@@ -1,0 +1,73 @@
+name: mac-check-kit
+
+# Builds the Mac check kit (tools/mac-check) and publishes it as the release "mac-check", so
+# testers can download it without a GitHub account. Triggered by pushing a tag
+# mac-check-v<N>; the release and its fixed download URLs are replaced each time.
+on:
+  push:
+    tags: ["mac-check-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  kit:
+    runs-on: macos-14
+    env:
+      # Runs on macOS 12+ (system audio itself needs 14.2); applies to rustc and CMake.
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mac-check
+      - name: build sdctl (Apple silicon)
+        run: cargo build --release --locked -p sdctl
+      - name: build sdctl (Intel)
+        env:
+          # whisper.cpp for any Intel Mac (not the build machine's CPU), cross-compiled.
+          GGML_NATIVE: "OFF"
+          CMAKE_OSX_ARCHITECTURES: x86_64
+        run: |
+          rustup target add x86_64-apple-darwin
+          cargo build --release --locked -p sdctl --target x86_64-apple-darwin
+      - name: package
+        run: |
+          mkdir -p kit/models
+          lipo -create target/release/sdctl target/x86_64-apple-darwin/release/sdctl -output kit/sdctl
+          lipo -info kit/sdctl
+          cp tools/mac-check/check.sh tools/mac-check/README.txt kit/
+          cp models/manifest.json kit/models/
+          codesign --force --sign - kit/sdctl
+          chmod +x kit/sdctl kit/check.sh
+          ./kit/sdctl --version || ./kit/sdctl --help | head -3
+          otool -l kit/sdctl | grep -A3 LC_BUILD_VERSION | head -4
+          (cd kit && zip -qr ../sonicdiar-mac-check.zip .)
+          ls -l sonicdiar-mac-check.zip
+      - name: smoke test, Apple silicon (devices, models, ONNX Runtime)
+        working-directory: kit
+        run: |
+          ./sdctl devices
+          ./sdctl models fetch
+          python3 -c "import wave,struct,math; w=wave.open('tone.wav','wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000); w.writeframes(b''.join(struct.pack('<h', int(8000*math.sin(i/5))) for i in range(32000)))"
+          ./sdctl debug vad tone.wav | tail -3
+      - name: smoke test, Intel (under Rosetta)
+        working-directory: kit
+        run: |
+          softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1 || true
+          rm -rf models/libonnxruntime.dylib
+          arch -x86_64 ./sdctl devices
+          arch -x86_64 ./sdctl models fetch
+          file models/libonnxruntime.dylib
+          arch -x86_64 ./sdctl debug vad tone.wav | tail -3
+          rm -f tone.wav models/*.onnx models/*.dylib
+      - name: publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete mac-check --yes --cleanup-tag 2>/dev/null || true
+          gh release create mac-check \
+            sonicdiar-mac-check.zip tools/mac-check/run.sh tools/mac-check/README.txt \
+            --target "$GITHUB_SHA" --title "Mac check kit" --notes \
+            "A guided test of audio capture on a real Mac (Apple silicon or Intel; system audio needs macOS 14.2+). In Terminal: \`curl -fsSL https://github.com/${{ github.repository }}/releases/download/mac-check/run.sh | bash\`. See README.txt. Built from ${GITHUB_SHA::7} (${GITHUB_REF_NAME})."

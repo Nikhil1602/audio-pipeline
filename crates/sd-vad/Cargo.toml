@@ -1,0 +1,23 @@
+[package]
+name = "sd-vad"
+description = "Voice activity detection (Silero VAD via ONNX Runtime) for SonicDiar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# load-dynamic: ONNX Runtime is loaded at run time from a pinned, hash-verified library
+# (models/manifest.json), so a missing ML runtime can never stop the audio engine from starting.
+ort = { version = "=2.0.0-rc.14", default-features = false, features = ["std", "ndarray", "load-dynamic", "api-23"] }
+ndarray = "0.17"
+thiserror.workspace = true
+
+[dev-dependencies]
+hound.workspace = true
+sonora-common-audio = "0.2"
+
+[lints]
+workspace = true

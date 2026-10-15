@@ -1,0 +1,29 @@
+[package]
+name = "sd-core"
+description = "Core types, host clock, drift estimation and real-time-safe buffers for SonicDiar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rtrb.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "ring"
+harness = false
+
+[lints]
+workspace = true

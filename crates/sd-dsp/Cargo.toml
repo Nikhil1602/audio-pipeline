@@ -1,0 +1,26 @@
+[package]
+name = "sd-dsp"
+description = "Audio processing for SonicDiar: echo cancellation, noise suppression, gain control"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sonora = "0.2"
+sonora-aec3 = "0.2"
+sonora-common-audio = "0.2"
+thiserror.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+hound.workspace = true
+
+[[bench]]
+name = "dsp"
+harness = false
+
+[lints]
+workspace = true

@@ -1,0 +1,37 @@
+[package]
+name = "sdctl"
+description = "Command-line tool for SonicDiar: journal inspection/export and pipeline simulation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+vulkan = ["sd-asr/vulkan", "sonicdiar/vulkan"]
+
+[dependencies]
+sd-asr = { workspace = true, features = ["whisper", "indic"] }
+whisper-rs = "0.16"
+crossbeam-channel.workspace = true
+sd-core.workspace = true
+sd-journal.workspace = true
+sd-capture.workspace = true
+sd-engine.workspace = true
+sd-dsp.workspace = true
+sd-vad = { path = "../../crates/sd-vad" }
+sd-diar = { path = "../../crates/sd-diar" }
+sonicdiar = { path = "../../crates/sonicdiar" }
+hound.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,32 @@
+[package]
+name = "sonicdiar-node"
+description = "Node.js binding of SonicDiar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "sonicdiar_node"
+crate-type = ["cdylib"]
+# A Node addon cannot be linked into a Rust test binary; it is tested from Node.
+test = false
+doctest = false
+
+[features]
+vulkan = ["sonicdiar/vulkan"]
+
+[dependencies]
+sonicdiar = { path = "../../crates/sonicdiar" }
+serde.workspace = true
+serde_json.workspace = true
+napi = { version = "3", default-features = false, features = ["napi6"] }
+napi-derive = "3"
+
+[build-dependencies]
+napi-build = "2"
+
+[lints]
+workspace = true

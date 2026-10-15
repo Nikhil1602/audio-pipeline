@@ -1,0 +1,30 @@
+# Third-party licences
+
+sonicdiar (MIT OR Apache-2.0) contains the following open-source Rust crates. Native code
+built into them includes whisper.cpp (MIT) and a Rust port of the WebRTC audio processing
+module (BSD-3-Clause). Downloaded at run time, not shipped: ONNX Runtime (MIT) and the models
+listed in `models/manifest.json` with their licences (Silero VAD MIT, Whisper MIT,
+IndicConformer MIT, pyannote segmentation-3.0 MIT, WeSpeaker ResNet34 CC BY 4.0 - attribution:
+WeSpeaker / VoxCeleb).
+
+## Overview
+
+{{#each overview}}
+- {{{name}}} ({{count}} crates)
+{{/each}}
+
+## Licences
+
+{{#each licenses}}
+### {{{name}}}
+
+Used by:
+{{#each used_by}}
+- [{{crate.name}} {{crate.version}}]({{#if crate.repository}}{{crate.repository}}{{else}}https://crates.io/crates/{{crate.name}}{{/if}})
+{{/each}}
+
+```
+{{{text}}}
+```
+
+{{/each}}

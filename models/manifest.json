@@ -1,0 +1,162 @@
+{
+  "format": 1,
+  "models": [
+    {
+      "id": "silero-vad-16k",
+      "file": "silero_vad_16k_op15.onnx",
+      "url": "https://github.com/snakers4/silero-vad/raw/v6.2.3/src/silero_vad/data/silero_vad_16k_op15.onnx",
+      "sha256": "7ed98ddbad84ccac4cd0aeb3099049280713df825c610a8ed34543318f1b2c49",
+      "size": 1289603,
+      "license": "MIT",
+      "source": "snakers4/silero-vad v6.2.3 (2026-09-23)",
+      "purpose": "voice activity detection, 16 kHz"
+    },
+    {
+      "id": "whisper-small",
+      "group": "asr",
+      "file": "ggml-small.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
+      "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
+      "size": 487601967,
+      "license": "MIT",
+      "source": "ggerganov/whisper.cpp on Hugging Face (ggml conversions of OpenAI Whisper, MIT), checked 2026-10-14",
+      "purpose": "ASR, Whisper small (f16)"
+    },
+    {
+      "id": "whisper-medium-q5",
+      "group": "asr",
+      "file": "ggml-medium-q5_0.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium-q5_0.bin",
+      "sha256": "19fea4b380c3a618ec4723c3eef2eb785ffba0d0538cf43f8f235e7b3b34220f",
+      "size": 539212467,
+      "license": "MIT",
+      "source": "ggerganov/whisper.cpp on Hugging Face (ggml conversions of OpenAI Whisper, MIT), checked 2026-10-14",
+      "purpose": "ASR, Whisper medium (q5_0)"
+    },
+    {
+      "id": "whisper-large-v3-turbo-q5",
+      "group": "asr",
+      "file": "ggml-large-v3-turbo-q5_0.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+      "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+      "size": 574041195,
+      "license": "MIT",
+      "source": "ggerganov/whisper.cpp on Hugging Face (ggml conversions of OpenAI Whisper, MIT), checked 2026-10-14",
+      "purpose": "ASR, Whisper large-v3-turbo (q5_0)"
+    },
+    {
+      "id": "whisper-large-v3-turbo",
+      "group": "asr",
+      "file": "ggml-large-v3-turbo.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
+      "sha256": "1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69",
+      "size": 1624555275,
+      "license": "MIT",
+      "source": "ggerganov/whisper.cpp on Hugging Face (ggml conversions of OpenAI Whisper, MIT), checked 2026-10-14",
+      "purpose": "ASR, Whisper large-v3-turbo (f16)"
+    },
+    {
+      "id": "whisper-large-v3-q5",
+      "group": "asr",
+      "file": "ggml-large-v3-q5_0.bin",
+      "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
+      "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
+      "size": 1081140203,
+      "license": "MIT",
+      "source": "ggerganov/whisper.cpp on Hugging Face (ggml conversions of OpenAI Whisper, MIT), checked 2026-10-14",
+      "purpose": "ASR, Whisper large-v3 (q5_0)"
+    },
+    {
+      "id": "wespeaker-resnet34-lm",
+      "group": "diar",
+      "file": "wespeaker_en_voxceleb_resnet34_LM.onnx",
+      "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet34_LM.onnx",
+      "sha256": "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012",
+      "size": 26530550,
+      "license": "CC-BY-4.0",
+      "source": "WeSpeaker ResNet34-LM trained on VoxCeleb (wenet-e2e/wespeaker; models follow the VoxCeleb licence, CC BY 4.0: attribution required), ONNX export from k2-fsa/sherpa-onnx releases, checked 2026-10-14",
+      "purpose": "speaker embeddings (256-d) for diarization"
+    },
+    {
+      "id": "pyannote-segmentation-3.0",
+      "group": "diar",
+      "file": "pyannote_segmentation_3_0.onnx",
+      "url": "https://huggingface.co/onnx-community/pyannote-segmentation-3.0/resolve/733a93b6473d019a773298e08cefa686894b1854/onnx/model.onnx",
+      "sha256": "057ee564753071c0b09b5b611648b50ac188d50846bff5f01e9f7bbf1591ea25",
+      "size": 5986908,
+      "license": "MIT",
+      "source": "pyannote/segmentation-3.0 (MIT, (c) CNRS), ONNX export from onnx-community (same outputs as the sherpa-onnx export, checked on AMI), checked 2026-10-14",
+      "purpose": "speech and overlapped-speech detection for diarization"
+    }
+  ],
+  "runtimes": [
+    {
+      "id": "onnxruntime",
+      "os": "windows",
+      "arch": "x86_64",
+      "archive_url": "https://github.com/microsoft/onnxruntime/releases/download/v1.31.0/onnxruntime-win-x64-1.31.0.zip",
+      "archive_sha256": "3958d8a44984160692c1b4ffd0de3cb48f8c39f9d34bb31e433db06e30b82195",
+      "archive_size": 82887349,
+      "member": "onnxruntime-win-x64-1.31.0/lib/onnxruntime.dll",
+      "file": "onnxruntime.dll",
+      "sha256": "0c42dc4e278f0968fdf9ebf1b1e54a74c657a9942e70803e453c91993451cf4c",
+      "size": 17253176,
+      "license": "MIT",
+      "source": "microsoft/onnxruntime v1.31.0 (2026-10-09), CPU build"
+    },
+    {
+      "id": "onnxruntime",
+      "os": "linux",
+      "arch": "x86_64",
+      "archive_url": "https://github.com/microsoft/onnxruntime/releases/download/v1.31.0/onnxruntime-linux-x64-1.31.0.tgz",
+      "archive_sha256": "cc5c72baf5ae5c8238a6841f0897227be2d02826b9cf98eaf02fdefaeeb03a57",
+      "archive_size": 11408003,
+      "member": "onnxruntime-linux-x64-1.31.0/lib/libonnxruntime.so.1.31.0",
+      "file": "libonnxruntime.so",
+      "sha256": "469849977cb60744ea160927e1a3a0643fd4c55c0aff743251c6d293402e334e",
+      "size": 29345384,
+      "license": "MIT",
+      "source": "microsoft/onnxruntime v1.31.0 (2026-10-09), CPU build"
+    },
+    {
+      "id": "onnxruntime",
+      "os": "macos",
+      "arch": "aarch64",
+      "archive_url": "https://github.com/microsoft/onnxruntime/releases/download/v1.31.0/onnxruntime-osx-arm64-1.31.0.tgz",
+      "archive_sha256": "1031b36dd3bdaa8d976a6130d9cf2a05e9be320b93ae804f8427b91dc3432afc",
+      "archive_size": 36549009,
+      "member": "./onnxruntime-osx-arm64-1.31.0/lib/libonnxruntime.1.31.0.dylib",
+      "file": "libonnxruntime.dylib",
+      "sha256": "2a50a63e7f41f8d4d551d3ee47248df3864f6540109fce8ad520ca3b51af4b70",
+      "size": 44830288,
+      "license": "MIT",
+      "source": "microsoft/onnxruntime v1.31.0 (2026-10-09), CPU build"
+    },
+    {
+      "id": "onnxruntime",
+      "os": "macos",
+      "arch": "x86_64",
+      "archive_url": "https://github.com/microsoft/onnxruntime/releases/download/v1.23.2/onnxruntime-osx-x86_64-1.23.2.tgz",
+      "archive_sha256": "d10359e16347b57d9959f7e80a225a5b4a66ed7d7e007274a15cae86836485a6",
+      "archive_size": 11676322,
+      "member": "./onnxruntime-osx-x86_64-1.23.2/lib/libonnxruntime.1.23.2.dylib",
+      "file": "libonnxruntime.dylib",
+      "sha256": "8c9c78de65ea3786f987c0d980e9c1b13a3a5fbc6b3e2965ba05b450e6e4c054",
+      "size": 39742608,
+      "license": "MIT",
+      "source": "microsoft/onnxruntime v1.23.2 (2025-10-25), CPU build; the last release with an Intel macOS build (later releases are arm64 only)"
+    }
+  ],
+  "bundles": [
+    {
+      "id": "indicconformer-600m",
+      "group": "indic",
+      "lock": "indicconformer.lock.json",
+      "dir": "indicconformer/assets",
+      "license": "MIT",
+      "gated": true,
+      "source": "ai4bharat/indic-conformer-600m-multilingual on Hugging Face (gated: accept the terms first); revision pinned in the lock file; checked 2026-10-14",
+      "purpose": "ASR for the 11 Indic product languages (Odia included), CTC decoding"
+    }
+  ]
+}

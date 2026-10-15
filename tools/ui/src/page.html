@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SonicDiar test bench</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #667080; --line: #e3e6ea;
+  --accent: #2f6fde; --accent-ink: #ffffff; --danger: #c93a3a; --warn-bg: #fff4d6; --warn-ink: #6b4d00;
+  --err-bg: #fde5e5; --err-ink: #7a1d1d; --ok: #1f8a4c; --pending: #8a93a3; --meter: #2fae6a; --meter-hot: #e0a020;
+  --s0: #2f6fde; --s1: #d9534f; --s2: #1f9d6b; --s3: #9b51e0; --s4: #e07b1a; --s5: #138a9c; --s6: #c0398a; --s7: #6b7a1a;
+  --radius: 10px; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111418; --panel: #191d23; --ink: #e6e9ee; --muted: #98a2b3; --line: #2a3038;
+    --accent: #5b8ff0; --warn-bg: #3a3014; --warn-ink: #f2d58a; --err-bg: #3d1d1d; --err-ink: #f3b4b4;
+    --pending: #7d8796; --s0: #6c9cf5; --s1: #f07b77; --s2: #4cc596; --s3: #b88af0; --s4: #f2a057; --s5: #4bbdcc;
+    --s6: #e47ab8; --s7: #b4c45a; --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; }
+button, select, input { font: inherit; color: inherit; }
+button { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 14px;
+  cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.danger { color: var(--danger); border-color: var(--danger); font-weight: 600; }
+button.small { padding: 3px 9px; font-size: 12px; }
+select, input[type=number], input[type=text] { width: 100%; padding: 6px 8px; border: 1px solid var(--line);
+  border-radius: 7px; background: var(--panel); }
+.muted { color: var(--muted); }
+
+header.top { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px;
+  padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { font-weight: 700; font-size: 16px; display: flex; align-items: baseline; gap: 8px; }
+.brand .muted { font-weight: 400; font-size: 12px; }
+.status { display: flex; align-items: center; gap: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px;
+  font-weight: 600; background: var(--line); color: var(--ink); }
+.chip.recording { background: #d93636; color: #fff; }
+.chip.recording::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: blink 1.2s infinite; }
+.chip.paused { background: #e0a020; color: #1b1f24; }
+.chip.starting, .chip.stopping { background: var(--accent); color: #fff; }
+@keyframes blink { 50% { opacity: .2; } }
+.clock { font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; min-width: 64px; }
+.controls { display: flex; gap: 8px; margin-left: auto; }
+
+.banner { margin: 10px 18px 0; padding: 9px 12px; border-radius: 8px; display: flex; gap: 10px; align-items: flex-start; }
+.banner.err { background: var(--err-bg); color: var(--err-ink); }
+.banner.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.banner span { flex: 1; }
+.banner button { background: transparent; border: none; padding: 0 4px; color: inherit; }
+
+main.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px 18px; align-items: start; }
+@media (max-width: 900px) { main.layout { grid-template-columns: 1fr; } }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.transcript-pane { display: flex; flex-direction: column; height: calc(100vh - 100px); min-height: 420px; position: relative; }
+.pane-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.pane-head h2 { margin: 0; font-size: 15px; }
+.pane-head .tools { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.meters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.meter { display: grid; grid-template-columns: 54px 1fr 58px; align-items: center; gap: 8px; font-size: 12px; }
+.meter .bar { position: relative; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.meter .fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--meter); transition: width .2s; }
+.meter .peak { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--meter-hot); left: 0; transition: left .2s; }
+.meter .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+.transcript { flex: 1; overflow-y: auto; padding: 14px; }
+.empty { color: var(--muted); text-align: center; margin-top: 60px; }
+.turn { display: grid; grid-template-columns: 4px 1fr; gap: 0 12px; margin-bottom: 14px; }
+.turn .rail { border-radius: 2px; }
+.turn .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 2px; }
+.who { font-weight: 700; cursor: pointer; }
+.who:hover { text-decoration: underline dotted; }
+.when { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.badge { font-size: 11px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+.badge.echo { border-color: var(--meter-hot); color: var(--meter-hot); }
+.text { white-space: pre-wrap; word-wrap: break-word; }
+.turn.pending .text { color: var(--pending); font-style: italic; }
+.turn.pending .text::after { content: " …"; }
+.mark { display: flex; align-items: center; gap: 10px; margin: 10px 0 16px; color: var(--muted); font-size: 12px; }
+.mark::before, .mark::after { content: ""; flex: 1; border-top: 1px dashed var(--line); }
+.summary { margin: 8px 0 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.summary h3 { margin: 0 0 6px; font-size: 14px; }
+.summary .ok { color: var(--ok); font-weight: 600; }
+.summary .bad { color: var(--danger); font-weight: 600; }
+.summary code { word-break: break-all; }
+.jump { position: absolute; right: 22px; bottom: 18px; box-shadow: var(--shadow); }
+
+aside.side { display: flex; flex-direction: column; gap: 12px; }
+details.card > summary { padding: 11px 14px; font-weight: 600; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::before { content: "▸"; color: var(--muted); transition: transform .15s; }
+details.card[open] > summary::before { transform: rotate(90deg); }
+details.card > summary .muted { font-weight: 400; font-size: 12px; margin-left: auto; }
+.body { padding: 2px 14px 14px; }
+.field { margin-bottom: 10px; }
+.field > label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+.check { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.check input { margin-top: 3px; }
+.check small { display: block; color: var(--muted); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hint { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+
+.models .item { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.models .item:first-child { border-top: none; }
+.models .meta { font-size: 11px; color: var(--muted); }
+.models .have { color: var(--ok); font-weight: 600; font-size: 12px; }
+.speakers .sp { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; padding: 4px 0; }
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.speakers input { padding: 3px 6px; }
+table.health { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+table.health th, table.health td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+.log { max-height: 260px; overflow-y: auto; font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.log div { padding: 2px 0; border-bottom: 1px solid var(--line); word-break: break-word; }
+.log .t { color: var(--muted); margin-right: 6px; }
+.log .e { color: var(--danger); }
+.log .w { color: var(--meter-hot); }
+pre.cfg { margin: 0; max-height: 260px; overflow: auto; font-size: 12px; background: var(--bg); padding: 8px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">SonicDiar <span class="muted" id="ver"></span></div>
+  <div class="status"><span id="phase" class="chip">Idle</span><span id="clock" class="clock">00:00</span></div>
+  <div class="controls">
+    <button id="btn-start" class="primary" title="Start a session with the settings on the right">▶ Start</button>
+    <button id="btn-pause" title="Pause: nothing is recorded or transcribed until you resume">❚❚ Pause</button>
+    <button id="btn-resume" class="primary" title="Resume recording">▶ Resume</button>
+    <button id="btn-stop" class="danger" title="Stop and finish transcribing">■ Stop</button>
+  </div>
+</header>
+<div id="banners"></div>
+
+<main class="layout">
+  <section class="card transcript-pane">
+    <div class="pane-head">
+      <h2>Live transcript</h2>
+      <span class="muted" id="counts"></span>
+      <div class="tools">
+        <button class="small" id="btn-copy">Copy</button>
+        <button class="small" id="btn-save">Save .txt</button>
+        <button class="small" id="btn-save-json" title="Every event of this session, as the SDK delivered it">Save events</button>
+      </div>
+    </div>
+    <div class="meters">
+      <div class="meter"><span>Mic</span><div class="bar"><div class="fill" id="m-mic"></div><div class="peak" id="p-mic"></div></div><span class="val" id="v-mic">–</span></div>
+      <div class="meter"><span>System</span><div class="bar"><div class="fill" id="m-system"></div><div class="peak" id="p-system"></div></div><span class="val" id="v-system">–</span></div>
+    </div>
+    <div class="transcript" id="transcript"><div class="empty">Press <b>Start</b>, then speak or play a video with someone talking.<br>Text appears here as it is recognized, labelled by speaker.</div></div>
+    <button class="jump small" id="jump" hidden>↓ Jump to live</button>
+  </section>
+
+  <aside class="side">
+    <details class="card" open id="settings-card">
+      <summary>Settings <span class="muted" id="settings-note"></span></summary>
+      <div class="body">
+        <div class="field">
+          <label for="lang">Language</label>
+          <select id="lang"></select>
+        </div>
+        <div class="field">
+          <label for="model">Speech model</label>
+          <select id="model"></select>
+          <p class="hint">Without a GPU, Whisper small keeps up live; the large models fall behind (see docs/asr-speed.md).</p>
+        </div>
+        <label class="check"><input type="checkbox" id="indic"><span>IndicConformer<small>Better for Indian languages; Odia needs it.</small></span></label>
+        <div class="field">
+          <label for="mic">Microphone</label>
+          <select id="mic" data-live="mic"></select>
+        </div>
+        <div class="field">
+          <label for="system">System audio (what the computer plays)</label>
+          <select id="system" data-live="system"></select>
+        </div>
+        <label class="check"><input type="checkbox" id="diar" checked><span>Speaker labels (diarization)<small>S1, S2, … per source.</small></span></label>
+        <label class="check"><input type="checkbox" id="overlap" checked><span>Mark overlapping speech</span></label>
+        <label class="check"><input type="checkbox" id="partials" checked><span>Live partial text<small>Shows words while someone is still speaking.</small></span></label>
+        <div class="row2">
+          <div class="field">
+            <label for="aec">Echo cancellation</label>
+            <select id="aec"><option value="auto">Auto</option><option value="on">On</option><option value="off">Off</option></select>
+          </div>
+          <div class="field">
+            <label for="threads">CPU threads</label>
+            <input type="number" id="threads" min="1" max="64" placeholder="auto">
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="agc"><span>Mic gain control</span></label>
+        <p class="hint" id="settings-hint">Devices can be switched while recording; other settings apply to the next session.</p>
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>Speakers <span class="muted">click a name to rename</span></summary>
+      <div class="body speakers" id="speakers"><span class="muted">No speakers yet.</span></div>
+    </details>
+
+    <details class="card" id="models-card">
+      <summary>Models <span class="muted" id="models-note"></span></summary>
+      <div class="body">
+        <div class="models" id="models"></div>
+        <p class="hint" id="models-dir"></p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>Health <span class="muted">once a second</span></summary>
+      <div class="body" id="health"><span class="muted">Not recording.</span></div>
+    </details>
+
+    <details class="card">
+      <summary>Event log <span class="muted" id="log-count"></span></summary>
+      <div class="body"><div class="log" id="log"></div></div>
+    </details>
+
+    <details class="card">
+      <summary>Session config <span class="muted">sent to Session::start</span></summary>
+      <div class="body"><pre class="cfg" id="cfg"></pre></div>
+    </details>
+  </aside>
+</main>
+
+<script>
+"use strict";
+const TOKEN = "__SD_TOKEN__";
+const $ = (id) => document.getElementById(id);
+
+function el(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "style") e.style.cssText = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c !== null && c !== undefined && c !== false) e.append(c instanceof Node ? c : String(c));
+  return e;
+}
+
+async function api(path, body) {
+  const opt = { method: body === undefined ? "GET" : "POST", headers: { "X-SD-Token": TOKEN } };
+  if (body !== undefined) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function clock(s) {
+  s = Math.max(0, Math.floor(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
+  const mm = String(m).padStart(2, "0"), ss = String(x).padStart(2, "0");
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+// ---------------------------------------------------------------- state
+let info = null, phase = "idle", session = null, next = 0, modelsRev = null;
+let utts = new Map();     // "mic:12" -> utterance
+let marks = [];           // pause / resume / stop dividers
+let summary = null, allEvents = [], logLines = [];
+let names = store.get("sonicdiar-ui-names", {});
+const colorOf = new Map();
+let stick = true;         // keep the transcript scrolled to the bottom
+
+const SOURCE = { mic: "Mic", system: "System" };
+
+function resetSession() {
+  utts = new Map(); marks = []; summary = null; allEvents = []; logLines = []; colorOf.clear();
+  renderLog();
+}
+
+// ---------------------------------------------------------------- banners
+function banner(kind, text, key) {
+  const box = $("banners");
+  if (key && box.querySelector(`[data-key="${key}"]`)) return;
+  const b = el("div", { class: `banner ${kind}`, "data-key": key || "" }, el("span", {}, text),
+    el("button", { title: "Dismiss", onclick: () => b.remove() }, "✕"));
+  box.append(b);
+}
+function clearBanner(key) { const b = $("banners").querySelector(`[data-key="${key}"]`); if (b) b.remove(); }
+
+// ---------------------------------------------------------------- settings
+const SETTINGS = ["lang", "model", "indic", "mic", "system", "diar", "overlap", "partials", "aec", "threads", "agc"];
+
+function have(id) { return !!info && info.models.some((m) => m.id === id && m.present); }
+function haveGroup(g) { return !!info && info.models.some((m) => m.group === g && m.present); }
+
+function fillSettings() {
+  const saved = store.get("sonicdiar-ui-settings", {});
+  const keep = (id) => saved[id] ?? (document.getElementById(id).type === "checkbox" ? $(id).checked : $(id).value);
+
+  // Speech models: the Whisper files, downloaded or not.
+  const model = $("model");
+  const want = keep("model");
+  model.replaceChildren(el("option", { value: "" }, "Off (record only)"));
+  const asr = info.models.filter((m) => m.group === "asr");
+  for (const m of asr) {
+    model.append(el("option", { value: m.file, disabled: !m.present },
+      `${m.id.replace(/^whisper-/, "Whisper ")} · ${(m.size / 1e6).toFixed(0)} MB${m.present ? "" : " (not downloaded)"}`));
+  }
+  const def = info.transcription_defaults.whisper_model;
+  const present = (f) => asr.some((m) => m.file === f && m.present);
+  model.value = present(want) || want === "" && saved.model !== undefined ? want
+    : present(def) ? def : (asr.find((m) => m.present) || { file: "" }).file;
+
+  $("indic").checked = haveGroup("indic") && !!keep("indic");
+  $("indic").disabled = !haveGroup("indic");
+
+  for (const [id, list, label] of [["mic", info.inputs, "microphone"], ["system", info.outputs, "output"]]) {
+    const sel = $(id), want = keep(id);
+    sel.replaceChildren(el("option", { value: "default" }, "System default (follows changes)"));
+    if (Array.isArray(list)) {
+      for (const d of list) sel.append(el("option", { value: d.id }, d.name + (d.is_default ? " (current default)" : "")));
+    } else if (list && list.error) {
+      banner("warn", `Could not list ${label}s: ${list.error}`, "dev-" + id);
+    }
+    sel.append(el("option", { value: "none" }, "None (don't capture)"));
+    sel.value = [...sel.options].some((o) => o.value === want) ? want : "default";
+  }
+
+  $("diar").disabled = !have("wespeaker-resnet34-lm");
+  if ($("diar").disabled) $("diar").checked = false; else $("diar").checked = !!keep("diar");
+  $("overlap").disabled = !have("pyannote-segmentation-3.0");
+  $("overlap").checked = !$("overlap").disabled && !!keep("overlap");
+  $("partials").checked = !!keep("partials");
+  $("aec").value = keep("aec") || "auto";
+  $("threads").value = keep("threads") || "";
+  $("agc").checked = !!keep("agc");
+  fillLanguages(keep("lang") || "auto");
+  settingsChanged();
+}
+
+function fillLanguages(want) {
+  const sel = $("lang"), whisper = $("model").value !== "", indic = $("indic").checked;
+  sel.replaceChildren(el("option", { value: "auto" }, "Auto-detect"));
+  for (const l of info.languages) {
+    const ok = (whisper && l.whisper) || (indic && l.indic);
+    const need = !l.whisper ? " (needs IndicConformer)" : "";
+    sel.append(el("option", { value: l.code, disabled: !ok }, `${l.name} (${l.code})${ok ? "" : need}`));
+  }
+  sel.value = [...sel.options].some((o) => o.value === want && !o.disabled) ? want : "auto";
+}
+
+function buildConfig() {
+  const model = $("model").value, indic = $("indic").checked;
+  const transcribing = model !== "" || indic;
+  const threads = parseInt($("threads").value, 10);
+  return {
+    mic: $("mic").value,
+    system: $("system").value,
+    processing: true,
+    echo_cancellation: $("aec").value,
+    gain_control: $("agc").checked,
+    transcription: transcribing ? {
+      language: $("lang").value,
+      whisper_model: model || null,
+      indic,
+      partials: $("partials").checked,
+      threads: threads > 0 ? threads : null,
+    } : null,
+    diarization: transcribing && $("diar").checked ? { overlap: $("overlap").checked } : null,
+  };
+}
+
+function settingsChanged() {
+  const transcribing = $("model").value !== "" || $("indic").checked;
+  $("cfg").textContent = JSON.stringify(buildConfig(), null, 2);
+  const saved = {};
+  for (const id of SETTINGS) saved[id] = $(id).type === "checkbox" ? $(id).checked : $(id).value;
+  store.set("sonicdiar-ui-settings", saved);
+  $("settings-note").textContent = !transcribing ? "recording only" :
+    ($("lang").value === "auto" ? "auto language" : $("lang").selectedOptions[0]?.textContent || "");
+  applyPhase();
+}
+
+for (const id of SETTINGS) {
+  $(id).addEventListener("change", async (ev) => {
+    if (id === "model" || id === "indic") fillLanguages($("lang").value);
+    const live = ev.target.dataset.live;
+    if (live && (phase === "recording" || phase === "paused")) {
+      if (ev.target.value === "none") {
+        banner("warn", "A running source cannot be switched off; stop the session to change that.", "none");
+      } else {
+        try { await api("/api/device", { source: live, device: ev.target.value }); }
+        catch (e) { banner("err", `Switching ${SOURCE[live]}: ${e.message}`, "dev-switch"); }
+      }
+    }
+    settingsChanged();
+  });
+}
+
+// ---------------------------------------------------------------- controls
+function applyPhase() {
+  const chip = $("phase");
+  const label = { idle: "Idle", starting: "Loading models…", recording: "Recording", paused: "Paused", stopping: "Finishing transcription…" }[phase];
+  chip.textContent = label; chip.className = "chip " + phase;
+  const live = phase === "recording" || phase === "paused";
+  const coreOk = have("silero-vad-16k") && haveGroup("runtime");
+  $("btn-start").hidden = live || phase === "stopping";
+  $("btn-start").disabled = phase !== "idle" || !info || !coreOk;
+  $("btn-start").title = coreOk ? "Start a session with the settings on the right" : "Download the core models first (Models panel)";
+  $("btn-pause").hidden = phase !== "recording";
+  $("btn-resume").hidden = phase !== "paused";
+  $("btn-stop").hidden = !live && phase !== "stopping";
+  $("btn-stop").disabled = !live;
+  for (const id of SETTINGS) {
+    const liveField = !!$(id).dataset.live;
+    $(id).disabled = (phase !== "idle" && !(liveField && live)) || baseDisabled(id);
+  }
+  $("settings-hint").textContent = phase === "idle"
+    ? "Devices can also be switched while recording."
+    : "Recording: only the devices can be changed now.";
+}
+
+function baseDisabled(id) {
+  if (!info) return true;
+  const transcribing = $("model").value !== "" || $("indic").checked;
+  if (id === "indic") return !haveGroup("indic");
+  if (id === "diar") return !have("wespeaker-resnet34-lm") || !transcribing;
+  if (id === "overlap") return !have("pyannote-segmentation-3.0") || !transcribing || !$("diar").checked;
+  if (id === "lang" || id === "partials" || id === "threads") return !transcribing;
+  return false;
+}
+
+async function control(path, body) {
+  try { await api(path, body); clearBanner("ctl"); }
+  catch (e) { banner("err", e.message, "ctl"); }
+}
+$("btn-start").onclick = () => { clearBanner("start-err"); control("/api/start", buildConfig()); };
+$("btn-pause").onclick = () => control("/api/pause", {});
+$("btn-resume").onclick = () => control("/api/resume", {});
+$("btn-stop").onclick = () => control("/api/stop", {});
+
+// ---------------------------------------------------------------- events
+function onEvent(ev) {
+  allEvents.push(ev);
+  const key = ev.source !== undefined && ev.utterance !== undefined ? `${ev.source}:${ev.utterance}` : null;
+  switch (ev.type) {
+    case "partial": {
+      const u = utts.get(key);
+      if (!u || !u.final) utts.set(key, { source: ev.source, utterance: ev.utterance, start: ev.start, end: ev.end, text: ev.text, language: ev.language, final: false });
+      break;
+    }
+    case "final":
+      // An empty final (nothing recognizable was said) only clears its partial.
+      if (ev.text.trim()) utts.set(key, { ...ev, final: true }); else utts.delete(key);
+      break;
+    case "speaker_revision": {
+      const u = utts.get(key);
+      if (u) { u.speaker = ev.speaker; u.parts = ev.parts; u.overlaps = ev.overlaps; }
+      log(`speakers revised: ${SOURCE[ev.source]} #${ev.utterance} → ${ev.speaker}`);
+      break;
+    }
+    case "bleed_removed":
+      utts.delete(key);
+      log(`${SOURCE[ev.source]} #${ev.utterance} dropped as echo of the far end: “${ev.text}”`);
+      break;
+    case "transcription_skipped":
+      utts.delete(key);
+      log(`${SOURCE[ev.source]} #${ev.utterance} not transcribed: ${ev.reason}`, "w");
+      break;
+    case "ui_paused": marks.push({ at: ev.at, text: `Paused at ${clock(ev.at)}` }); break;
+    case "ui_resumed": marks.push({ at: ev.at, text: `Resumed at ${clock(ev.at)}` }); break;
+    case "ui_stopping": marks.push({ at: ev.at, text: `Stopped at ${clock(ev.at)} · finishing queued speech` }); break;
+    case "ui_started": log("session started"); break;
+    case "ui_summary": summary = ev.summary; log(`stopped: ${ev.summary.complete ? "complete" : "audio was dropped"}`); break;
+    case "ui_error": banner("err", ev.message, "start-err"); log(ev.message, "e"); break;
+    case "permission_needed":
+      banner("warn", `${SOURCE[ev.source]}: permission needed — ${ev.what}`, "perm-" + ev.source);
+      log(`${SOURCE[ev.source]}: permission needed (${ev.confirmed ? "denied" : "probably"}): ${ev.what}`, "w");
+      break;
+    case "device_started":
+      clearBanner("perm-" + ev.source);
+      log(`${SOURCE[ev.source]}: capturing from ${ev.device_name}`);
+      break;
+    case "device_switching": log(`${SOURCE[ev.source]}: switching device (${ev.reason})`); break;
+    case "no_device": log(`${SOURCE[ev.source]}: no device; waiting for one`, "w"); break;
+    case "capture_problem": log(`${SOURCE[ev.source]}: ${ev.message}`, "w"); break;
+    case "speech": log(`${SOURCE[ev.source]}: speech ${clock(ev.start)}–${clock(ev.end)} (${(ev.end - ev.start).toFixed(1)} s)`); break;
+    case "warning": log(ev.message, "w"); banner("warn", ev.message, "warn-" + ev.message.slice(0, 40)); break;
+    case "audio_dropped": log(`${SOURCE[ev.source]}: ${ev.frames} frames dropped`, "e"); break;
+    default: log(`${ev.type}: ${JSON.stringify(ev)}`);
+  }
+}
+
+function log(text, cls) {
+  logLines.push({ t: lastElapsed, text, cls });
+  if (logLines.length > 500) logLines.splice(0, logLines.length - 500);
+  logDirty = true;
+}
+let logDirty = false, lastElapsed = 0;
+function renderLog() {
+  const box = $("log");
+  const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 20;
+  box.replaceChildren(...logLines.map((l) => el("div", { class: l.cls || "" }, el("span", { class: "t" }, clock(l.t)), l.text)));
+  if (atEnd) box.scrollTop = box.scrollHeight;
+  $("log-count").textContent = logLines.length ? `${logLines.length}` : "";
+  logDirty = false;
+}
+
+// ---------------------------------------------------------------- transcript
+function speakerKey(source, speaker) { return speaker ? `${source}:${speaker}` : `${source}:?`; }
+function speakerName(k) {
+  if (names[k]) return names[k];
+  const [src, sp] = k.split(":");
+  return sp === "?" ? SOURCE[src] : `${SOURCE[src]} · ${sp}`;
+}
+function speakerColor(k) {
+  if (!colorOf.has(k)) colorOf.set(k, k.endsWith(":?") ? "var(--muted)" : `var(--s${colorOf.size % 8})`);
+  return colorOf.get(k);
+}
+
+function segments() {
+  const out = [];
+  for (const u of utts.values()) {
+    if (u.final && u.parts && u.parts.length) {
+      for (const p of u.parts) out.push({ start: p.start, end: p.end, key: speakerKey(u.source, p.speaker), text: p.text, u, pending: false });
+    } else {
+      out.push({ start: u.start, end: u.end, key: speakerKey(u.source, u.final ? u.speaker : null), text: u.text, u, pending: !u.final });
+    }
+  }
+  for (const m of marks) out.push({ start: m.at, mark: m.text });
+  out.sort((a, b) => a.start - b.start || (a.mark ? 1 : 0) - (b.mark ? 1 : 0));
+  return out;
+}
+
+function turns() {
+  const out = [];
+  for (const s of segments()) {
+    const last = out[out.length - 1];
+    if (!s.mark && last && !last.mark && last.key === s.key && last.pending === s.pending) {
+      last.segs.push(s); last.end = Math.max(last.end, s.end);
+    } else {
+      out.push(s.mark ? s : { key: s.key, pending: s.pending, start: s.start, end: s.end, segs: [s] });
+    }
+  }
+  return out;
+}
+
+function joinText(segs) {
+  let t = "";
+  for (const s of segs) {
+    const txt = (s.text || "").trim();
+    if (!txt) continue;
+    const cjk = /^[　-鿿가-힯]/.test(txt) && /[　-鿿가-힯]$/.test(t);
+    t += t && !cjk ? " " + txt : txt;
+  }
+  return t;
+}
+
+let tDirty = false;
+function renderTranscript() {
+  const box = $("transcript");
+  const ts = turns();
+  const kids = [];
+  for (const t of ts) {
+    if (t.mark) { kids.push(el("div", { class: "mark" }, t.mark)); continue; }
+    const langs = [...new Set(t.segs.map((s) => s.u.language).filter(Boolean))];
+    const probs = t.segs[0].u.language_probabilities;
+    const echo = t.segs.some((s) => s.u.echo_unverified);
+    const overlaps = t.segs.flatMap((s) => (s.u.overlaps || []));
+    const color = speakerColor(t.key);
+    kids.push(el("div", { class: "turn" + (t.pending ? " pending" : "") },
+      el("div", { class: "rail", style: `background:${color}` }),
+      el("div", {},
+        el("div", { class: "head" },
+          el("span", { class: "who", style: `color:${color}`, title: "Rename", onclick: () => rename(t.key) }, speakerName(t.key)),
+          el("span", { class: "when" }, `${clock(t.start)}–${clock(t.end)}`),
+          langs.map((l) => el("span", { class: "badge", title: probs ? probs.map(([c, p]) => `${c} ${(p * 100).toFixed(0)}%`).join(", ") : "" }, l)),
+          echo ? el("span", { class: "badge echo", title: "Mic text that may be the far end leaking into the mic (echo not verified yet)" }, "echo?") : null,
+          [...new Set(overlaps.map((o) => o.speaker))].map((sp) => el("span", { class: "badge", title: "Another speaker talks at the same time" }, `overlap: ${speakerName(speakerKey(t.segs[0].u.source, sp))}`)),
+        ),
+        el("div", { class: "text" }, joinText(t.segs)),
+      )));
+  }
+  if (summary) kids.push(summaryCard(summary));
+  if (!kids.length) kids.push(el("div", { class: "empty" },
+    phase === "idle" ? "Press Start, then speak or play a video with someone talking." : "Listening… text appears when someone speaks."));
+  box.replaceChildren(...kids);
+  if (stick) box.scrollTop = box.scrollHeight;
+  const finals = [...utts.values()].filter((u) => u.final).length;
+  $("counts").textContent = finals ? `${finals} utterance${finals === 1 ? "" : "s"}` : "";
+  renderSpeakers(ts);
+  tDirty = false;
+}
+
+function summaryCard(s) {
+  const src = s.sources.map((x) => `${SOURCE[x.source]}: ${x.timeline.toFixed(1)} s, ${x.dropped_frames} dropped, ${x.restarts} restarts`).join(" · ");
+  return el("div", { class: "summary" },
+    el("h3", {}, "Session finished"),
+    el("div", {}, "Duration ", el("b", {}, clock(s.duration)), " · ",
+      s.complete ? el("span", { class: "ok" }, "complete: nothing dropped") : el("span", { class: "bad" }, "audio was dropped")),
+    el("div", { class: "muted" }, src),
+    el("div", {}, "Recording (journal): ", el("code", {}, s.journal_dir)));
+}
+
+function renderSpeakers(ts) {
+  const talk = new Map();
+  for (const t of ts) if (!t.mark && !t.pending && !t.key.endsWith(":?"))
+    for (const s of t.segs) talk.set(t.key, (talk.get(t.key) || 0) + (s.end - s.start));
+  const box = $("speakers");
+  if (!talk.size) { box.replaceChildren(el("span", { class: "muted" }, $("diar").checked ? "No speakers yet." : "Speaker labels are off.")); return; }
+  box.replaceChildren(...[...talk.entries()].sort().map(([k, secs]) => el("div", { class: "sp" },
+    el("span", { class: "dot", style: `background:${speakerColor(k)}` }),
+    el("span", { class: "who", onclick: () => rename(k), title: "Rename" }, speakerName(k)),
+    el("span", { class: "muted" }, `${secs.toFixed(0)} s`))));
+}
+
+function rename(k) {
+  const v = prompt(`Name for ${speakerName(k)} (empty: default)`, names[k] || "");
+  if (v === null) return;
+  if (v.trim()) names[k] = v.trim(); else delete names[k];
+  store.set("sonicdiar-ui-names", names);
+  renderTranscript();
+}
+
+$("transcript").addEventListener("scroll", () => {
+  const b = $("transcript");
+  stick = b.scrollTop + b.clientHeight >= b.scrollHeight - 40;
+  $("jump").hidden = stick;
+});
+$("jump").onclick = () => { stick = true; $("transcript").scrollTop = $("transcript").scrollHeight; $("jump").hidden = true; };
+
+function transcriptText() {
+  return turns().map((t) => t.mark ? `--- ${t.mark} ---` :
+    `[${clock(t.start)}] ${speakerName(t.key)}: ${joinText(t.segs)}${t.pending ? " …" : ""}`).join("\n");
+}
+function download(name, text, type) {
+  const a = el("a", { href: URL.createObjectURL(new Blob([text], { type })), download: name });
+  document.body.append(a); a.click(); a.remove();
+}
+const stamp = () => new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+$("btn-copy").onclick = async () => { try { await navigator.clipboard.writeText(transcriptText()); } catch (e) { banner("err", "Copy failed: " + e.message, "copy"); } };
+$("btn-save").onclick = () => download(`transcript-${stamp()}.txt`, transcriptText(), "text/plain");
+$("btn-save-json").onclick = () => download(`events-${stamp()}.json`, JSON.stringify(allEvents, null, 1), "application/json");
+
+// ---------------------------------------------------------------- meters, health, models
+function meter(src, lv) {
+  const [rms, peak] = lv || [-200, -200];
+  const pct = (db) => Math.max(0, Math.min(100, (db + 60) / 60 * 100));
+  $("m-" + src).style.width = (phase === "paused" ? 0 : pct(rms)) + "%";
+  $("p-" + src).style.left = pct(peak) + "%";
+  $("v-" + src).textContent = phase === "paused" ? "paused" : lv && rms > -100 ? `${rms.toFixed(0)} dB` : "–";
+}
+
+function renderHealth(h) {
+  if (!h || !h.sources) { $("health").replaceChildren(el("span", { class: "muted" }, phase === "idle" ? "Not recording." : "Waiting…")); return; }
+  $("health").replaceChildren(el("table", { class: "health" },
+    el("tr", {}, ["", "time", "dropped", "glitches", "restarts", "drift"].map((x) => el("th", {}, x))),
+    h.sources.map((s) => el("tr", {},
+      el("td", {}, SOURCE[s.source]), el("td", {}, clock(s.timeline)), el("td", {}, s.dropped_frames),
+      el("td", {}, s.device_glitches), el("td", {}, s.restarts),
+      el("td", {}, s.drift_ppm === null ? "…" : `${s.drift_ppm.toFixed(1)} ppm`)))));
+}
+
+let downloading = null;
+function renderModels() {
+  const box = $("models");
+  const missing = info.models.filter((m) => !m.present).length;
+  $("models-note").textContent = downloading ? "downloading…" : missing ? `${missing} not downloaded` : "all present";
+  const label = { core: "core", runtime: "runtime", asr: "speech", diar: "speakers", indic: "Indian languages" };
+  box.replaceChildren(...info.models.map((m) => el("div", { class: "item" },
+    el("div", {}, m.id, el("div", { class: "meta" }, `${label[m.group] || m.group} · ${(m.size / 1e6).toFixed(m.size < 1e7 ? 1 : 0)} MB · ${m.license}`)),
+    m.present ? el("span", { class: "have" }, "✓")
+      : downloading === m.id ? el("span", { class: "muted" }, "downloading…")
+      : el("button", { class: "small", disabled: !!downloading, onclick: () => fetchModel(m.id),
+          title: m.group === "indic" ? "Gated on Hugging Face: needs HF_TOKEN or `hf auth login` where sonicdiar-ui runs" : "" }, "Download"))));
+  $("models-dir").textContent = `Folder: ${info.models_dir}`;
+  const coreOk = have("silero-vad-16k") && haveGroup("runtime");
+  if (!coreOk) { banner("warn", "The core models (voice detection and ONNX Runtime, ~50 MB) are missing: download them in the Models panel.", "core"); $("models-card").open = true; }
+  else clearBanner("core");
+}
+async function fetchModel(id) {
+  try { await api("/api/models/fetch", { id }); downloading = id; renderModels(); }
+  catch (e) { banner("err", e.message, "dl"); }
+}
+
+async function loadInfo() {
+  info = await api("/api/info");
+  $("ver").textContent = "v" + info.version + " · test bench";
+  fillSettings();
+  renderModels();
+}
+
+// ---------------------------------------------------------------- poll loop
+async function loop() {
+  for (;;) {
+    try {
+      const q = `/api/poll?after=${next}` + (session === null ? "" : `&session=${session}`);
+      const r = await api(q);
+      clearBanner("conn");
+      if (r.session !== session) { session = r.session; resetSession(); tDirty = true; }
+      lastElapsed = r.elapsed;
+      for (const ev of r.events) { onEvent(ev); tDirty = true; }
+      next = r.from + r.events.length;
+      if (r.phase !== phase) { phase = r.phase; applyPhase(); tDirty = true; }
+      $("clock").textContent = clock(r.elapsed);
+      meter("mic", r.levels.mic); meter("system", r.levels.system);
+      renderHealth(r.health);
+      if (r.download_error) banner("err", "Download failed: " + r.download_error, "dl");
+      if (r.downloading !== downloading) { downloading = r.downloading; if (info) renderModels(); }
+      if (modelsRev !== null && r.models_rev !== modelsRev) await loadInfo();
+      modelsRev = r.models_rev;
+      if (tDirty) renderTranscript();
+      if (logDirty) renderLog();
+    } catch (e) {
+      banner("err", "Lost contact with sonicdiar-ui (is it still running?): " + e.message, "conn");
+      await new Promise((ok) => setTimeout(ok, 1000));
+    }
+  }
+}
+
+(async () => {
+  applyPhase();
+  try { await loadInfo(); } catch (e) { banner("err", "Could not load settings: " + e.message, "conn"); }
+  applyPhase();
+  loop();
+})();
+</script>
+</body>
+</html>

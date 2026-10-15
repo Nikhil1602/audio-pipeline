@@ -1,0 +1,28 @@
+[package]
+name = "sonicdiar-python"
+description = "Python binding of SonicDiar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+# A Python extension module cannot be linked into a Rust test binary; it is tested from Python.
+test = false
+doctest = false
+
+[features]
+vulkan = ["sonicdiar/vulkan"]
+
+[dependencies]
+sonicdiar = { path = "../../crates/sonicdiar" }
+serde.workspace = true
+serde_json.workspace = true
+pyo3 = { version = "0.26", features = ["abi3-py39", "extension-module"] }
+
+[lints]
+workspace = true

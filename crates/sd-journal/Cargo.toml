@@ -1,0 +1,29 @@
+[package]
+name = "sd-journal"
+description = "Crash-safe on-disk audio journal for SonicDiar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sd-core.workspace = true
+crc32fast.workspace = true
+hound.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "journal"
+harness = false
+
+[lints]
+workspace = true

@@ -1,0 +1,30 @@
+[package]
+name = "sd-engine"
+description = "Session orchestration for SonicDiar: capture, buffering, journaling, health"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# Engines are injected by the application; no ASR engine is compiled into the engine itself.
+sd-asr.workspace = true
+sd-core.workspace = true
+sd-capture.workspace = true
+sd-journal.workspace = true
+sd-dsp.workspace = true
+sd-vad = { path = "../sd-vad" }
+# Speaker diarization of transcripts (WeSpeaker embeddings on ONNX Runtime, loaded at run time).
+sd-diar = { path = "../sd-diar" }
+crossbeam-channel.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+fs4.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

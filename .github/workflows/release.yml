@@ -1,0 +1,185 @@
+name: release
+
+# Builds the SDK for Windows (x64), Linux (x64) and macOS (Apple silicon + Intel) and publishes
+# a GitHub Release when a tag v<version> is pushed (the version must match Cargo.toml):
+#   - C library: sonicdiar-<version>-<platform>.{zip,tar.gz} (library, header, licences)
+#   - Python wheels (abi3, Python 3.9+): sonicdiar-<version>-*.whl
+#   - npm package with prebuilt addons for every platform: sonicdiar-<version>.tgz
+#   - THIRD-PARTY-LICENSES.md, an SBOM (CycloneDX) and SHA256SUMS
+# Every file gets a signed build-provenance attestation (Sigstore, verifiable with
+# `gh attestation verify <file> -R Nikhil1602/sonicdiar`).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+          - os: ubuntu-22.04 # glibc 2.35: runs on Ubuntu 22.04+, Debian 12+, Fedora 36+
+            platform: linux-x64
+          - os: macos-14
+            platform: macos-universal
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: version matches the tag
+        shell: bash
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "::error::tag $GITHUB_REF_NAME but Cargo.toml says $v"; exit 1; }
+          echo "VERSION=$v" >> $GITHUB_ENV
+      - run: rustup show active-toolchain
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: whisper.cpp build environment (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin' >> $GITHUB_ENV
+          echo 'CMAKE_C_FLAGS_RELEASE=-O2 -Ob2 -DNDEBUG -nologo -MD -Brepro -W0' >> $GITHUB_ENV
+          echo 'CMAKE_CXX_FLAGS_RELEASE=-O2 -Ob2 -DNDEBUG -utf-8 -nologo -MD -Brepro -W0' >> $GITHUB_ENV
+          # Portable CPU features, not the build machine's.
+          echo 'GGML_NATIVE=OFF' >> $GITHUB_ENV
+      - name: libpulse (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends libpulse-dev
+          echo 'GGML_NATIVE=OFF' >> $GITHUB_ENV
+      - name: build
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            rustup target add x86_64-apple-darwin
+            cargo build --release --locked -p sonicdiar-ffi -p sonicdiar-node
+            GGML_NATIVE=OFF CMAKE_OSX_ARCHITECTURES=x86_64 \
+              cargo build --release --locked -p sonicdiar-ffi -p sonicdiar-node \
+              --target x86_64-apple-darwin
+          else
+            cargo build --release --locked -p sonicdiar-ffi -p sonicdiar-node
+          fi
+      - name: package the C library and the Node addons
+        shell: bash
+        run: |
+          name="sonicdiar-$VERSION-${{ matrix.platform }}"
+          mkdir -p "$name/include" "$name/lib" dist node-prebuilds
+          cp crates/sd-ffi/include/sonicdiar.h "$name/include/"
+          cp LICENSE-MIT LICENSE-APACHE "$name/"
+          cp crates/sd-ffi/examples/smoke.c "$name/"
+          case "$RUNNER_OS" in
+            Windows)
+              cp target/release/sonicdiar.dll target/release/sonicdiar.dll.lib "$name/lib/"
+              cp target/release/sonicdiar_node.dll node-prebuilds/sonicdiar.win32-x64.node
+              7z a -bd "dist/$name.zip" "$name" >/dev/null ;;
+            Linux)
+              cp target/release/libsonicdiar.so target/release/libsonicdiar.a "$name/lib/"
+              cp target/release/libsonicdiar_node.so node-prebuilds/sonicdiar.linux-x64.node
+              tar czf "dist/$name.tar.gz" "$name" ;;
+            macOS)
+              lipo -create target/release/libsonicdiar.dylib \
+                target/x86_64-apple-darwin/release/libsonicdiar.dylib \
+                -output "$name/lib/libsonicdiar.dylib"
+              install_name_tool -id @rpath/libsonicdiar.dylib "$name/lib/libsonicdiar.dylib"
+              codesign --force --sign - "$name/lib/libsonicdiar.dylib"
+              cp target/release/libsonicdiar_node.dylib node-prebuilds/sonicdiar.darwin-arm64.node
+              cp target/x86_64-apple-darwin/release/libsonicdiar_node.dylib \
+                node-prebuilds/sonicdiar.darwin-x64.node
+              tar czf "dist/$name.tar.gz" "$name" ;;
+          esac
+          ls -l dist node-prebuilds
+      - name: Python wheel
+        shell: bash
+        run: |
+          pip install "maturin>=1.7,<2"
+          case "$RUNNER_OS" in
+            Linux) maturin build --release --locked -m bindings/python/Cargo.toml -o dist --compatibility linux ;;
+            macOS) rustup target add x86_64-apple-darwin
+                   GGML_NATIVE=OFF maturin build --release --locked -m bindings/python/Cargo.toml -o dist \
+                     --target universal2-apple-darwin ;;
+            *) maturin build --release --locked -m bindings/python/Cargo.toml -o dist ;;
+          esac
+          pip install dist/*.whl
+          python bindings/python/tests/smoke.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.platform }}
+          path: dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: node-${{ matrix.platform }}
+          path: node-prebuilds/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: node-*
+          path: bindings/node/prebuilds
+          merge-multiple: true
+      - name: npm package (all platforms)
+        run: |
+          cp LICENSE-MIT LICENSE-APACHE bindings/node/
+          ls bindings/node/prebuilds
+          (cd bindings/node && npm pack --pack-destination ../../dist)
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about,cargo-cyclonedx
+      - name: licence report and SBOM
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends libpulse-dev
+          cargo about generate about.hbs -o dist/THIRD-PARTY-LICENSES.md
+          # One SBOM per workspace crate is written; the C library's covers what ships.
+          cargo cyclonedx --manifest-path crates/sd-ffi/Cargo.toml --format json --override-filename sbom
+          mv crates/sd-ffi/sbom.json dist/sonicdiar-sbom.cdx.json
+      - name: checksums
+        run: (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*
+      - name: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=${GITHUB_REF_NAME#v}
+          cat > notes.md <<EOF
+          SonicDiar $v: meeting audio capture SDK for Windows, macOS and Linux.
+
+          - **C**: \`sonicdiar-$v-<platform>\` (library + \`sonicdiar.h\`).
+          - **Python** (3.9+): \`pip install <the .whl for your platform>\`.
+          - **Node.js** (18+, Electron): \`npm install ./sonicdiar-$v.tgz\`.
+
+          Models are not bundled: fetch them on first use (\`fetch_models\` / \`sd_models_fetch\`);
+          every file is checked against SHA-256 hashes built into the library.
+          Integration guide: docs/sdk.md. Licence: MIT OR Apache-2.0; third-party licences in
+          THIRD-PARTY-LICENSES.md. Verify a file: \`gh attestation verify <file> -R ${{ github.repository }}\`.
+          EOF
+          # A re-pushed tag replaces its release.
+          gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
+          gh release create "$GITHUB_REF_NAME" dist/* --title "SonicDiar $v" --notes-file notes.md

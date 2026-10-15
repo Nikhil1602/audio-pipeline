@@ -1,0 +1,21 @@
+/target
+# Output paths mangled by a POSIX shell ("target\x" becomes "targetx") must never be committed.
+/target*
+*.pdb
+/models/*.bin
+/models/*.onnx
+/bench/data/
+/bench/out/
+
+/bench/webrtc-cpp/*.exe
+/bench/webrtc-cpp/*.lib
+/bench/webrtc-cpp/*.exp
+/models/*.dll
+/models/*.so
+/models/*.dylib
+# Multi-file models (bundles): only their lock files are committed.
+/models/indicconformer/
+# Built language models (sdctl asr lm-build); rebuilt from bench/data/indiccorp.
+/models/lm/
+__pycache__/
+*.pyc

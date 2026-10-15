@@ -1,0 +1,14 @@
+{
+  "name": "sonicdiar",
+  "version": "0.1.0",
+  "description": "Meeting audio capture: mic and system audio, echo cancellation, live transcription, speaker labels",
+  "license": "MIT OR Apache-2.0",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": ["index.js", "index.d.ts", "prebuilds/", "README.md"],
+  "engines": { "node": ">=18" },
+  "os": ["win32", "darwin", "linux"],
+  "scripts": { "test": "node test/smoke.js" },
+  "keywords": ["audio", "capture", "loopback", "transcription", "speech-to-text", "diarization", "meeting"],
+  "repository": { "type": "git", "url": "https://github.com/Nikhil1602/sonicdiar" }
+}

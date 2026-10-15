@@ -1,0 +1,45 @@
+[workspace]
+resolver = "3"
+members = ["crates/sd-core", "crates/sd-journal", "crates/sd-capture", "crates/sd-engine", "crates/sd-dsp", "crates/sd-vad", "crates/sd-asr", "crates/sd-diar", "crates/sonicdiar", "crates/sd-ffi", "bindings/python", "bindings/node", "tools/sdctl", "tools/ui"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Nikhil1602/sonicdiar"
+
+[workspace.dependencies]
+sd-core = { path = "crates/sd-core" }
+sd-journal = { path = "crates/sd-journal" }
+sd-capture = { path = "crates/sd-capture" }
+sd-engine = { path = "crates/sd-engine" }
+sd-asr = { path = "crates/sd-asr", default-features = false }
+sd-dsp = { path = "crates/sd-dsp" }
+crossbeam-channel = "0.5"
+fs4 = "1.1"
+rtrb = "0.4"
+thiserror = "2"
+crc32fast = "1.5"
+hound = "3.5"
+clap = { version = "4.6", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"
+windows-sys = { version = "0.61", features = ["Win32_System_Performance"] }
+tempfile = "3"
+criterion = "0.8"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "warn"
+
+[profile.release]
+debug = "line-tables-only"
+lto = "thin"
+codegen-units = 1

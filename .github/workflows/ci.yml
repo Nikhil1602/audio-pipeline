@@ -1,0 +1,255 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      # rust-toolchain.toml pins the toolchain; rustup installs it on first use.
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: whisper.cpp build environment (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        # See tools/dev/env-windows.sh: libclang for bindgen, and /O2 for MSVC (the cmake crate
+        # drops it, making whisper.cpp ~9x slower).
+        run: |
+          echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin' >> $GITHUB_ENV
+          echo 'CMAKE_C_FLAGS_RELEASE=-O2 -Ob2 -DNDEBUG -nologo -MD -Brepro -W0' >> $GITHUB_ENV
+          echo 'CMAKE_CXX_FLAGS_RELEASE=-O2 -Ob2 -DNDEBUG -utf-8 -nologo -MD -Brepro -W0' >> $GITHUB_ENV
+      - name: libpulse (Linux capture backend)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpulse-dev
+      - name: fmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --locked
+      - name: fetch models (pinned, sha256-verified)
+        run: cargo run --release --locked -p sdctl -- models fetch
+      - name: test
+        shell: bash
+        # Failures are also emitted as annotations, which are readable without logging in.
+        run: |
+          set +e
+          cargo test --workspace --locked 2>&1 | tee test.log
+          status=${PIPESTATUS[0]}
+          grep -E "panicked at|^test .* FAILED|^error(\[|:)|left:|right:" test.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+          exit $status
+      - name: no-loss simulation (5 min of audio at 60x, with a 3 s journal stall)
+        shell: bash
+        # Result lines are also emitted as annotations, which are readable without logging in.
+        run: |
+          set +e
+          cargo run --release --locked -p sdctl -- simulate --seconds 300 --speed 60 --stall-ms 3000 2>&1 | tee sim.log
+          status=${PIPESTATUS[0]}
+          kind=notice; [ $status -ne 0 ] && kind=error
+          grep -E "produced|wall|verdict|error" sim.log | head -20 | while IFS= read -r line; do echo "::$kind::$line"; done
+          exit $status
+      - name: benchmarks (smoke)
+        run: |
+          cargo bench --locked -p sd-core --bench ring -- --warm-up-time 1 --measurement-time 2
+          cargo bench --locked -p sd-journal --bench journal -- --warm-up-time 1 --measurement-time 2
+
+  # Linux capture end to end on real sound servers with virtual devices (M6). A commit message
+  # containing [soak] makes the recording phase a one-hour soak instead of two minutes.
+  linux-audio:
+    name: linux capture e2e (${{ matrix.server }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        server: [pulseaudio, pipewire]
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-audio
+      - name: sound server
+        run: |
+          sudo apt-get update
+          if [ "${{ matrix.server }}" = pulseaudio ]; then
+            sudo apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils libpulse-dev
+          else
+            sudo apt-get install -y --no-install-recommends pipewire pipewire-pulse wireplumber \
+              pulseaudio-utils libpulse-dev dbus dbus-user-session
+          fi
+      - name: end to end
+        shell: bash
+        env:
+          SD_E2E_RECORD_SECONDS: ${{ contains(github.event.head_commit.message, '[soak]') && '3600' || '120' }}
+        # Result lines are also emitted as annotations, which are readable without logging in.
+        run: |
+          set +e
+          if [ "${{ matrix.server }}" = pipewire ]; then
+            dbus-run-session -- bash tools/ci/linux-audio-e2e.sh pipewire 2>&1 | tee e2e.log
+          else
+            bash tools/ci/linux-audio-e2e.sh pulseaudio 2>&1 | tee e2e.log
+          fi
+          status=${PIPESTATUS[0]}
+          # Short annotations (GitHub keeps about 10 per kind and step).
+          grep -E "^(system|mic|30 s|after switch|switch|removal|reappear): " e2e.log | head -10 | cut -c1-300 | while IFS= read -r l; do echo "::notice::$l"; done
+          grep -E "^pulse diag" e2e.log | head -10 | cut -c1-330 | while IFS= read -r l; do echo "::warning::$l"; done
+          grep -E "panicked at|^Error|e2e:" e2e.log | grep -v RTKit | head -10 | cut -c1-300 | while IFS= read -r l; do echo "::error::$l"; done
+          exit $status
+      - name: recording summary
+        if: always()
+        shell: bash
+        run: |
+          [ -f target/e2e-rec.log ] || exit 0
+          grep -E "journal|clock drift|verdict|processing:" target/e2e-rec.log | head -10 | cut -c1-330 | while IFS= read -r l; do echo "::notice::$l"; done
+          grep -E "^record: switch events" e2e.log | while IFS= read -r l; do echo "::notice::$l"; done
+      # A Linux sdctl for the real-hardware check (tools/linux/hw-check.sh), built on Ubuntu 24.04.
+      - name: upload sdctl
+        if: matrix.server == 'pipewire' && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdctl-linux-x86_64
+          path: target/release/sdctl
+          retention-days: 30
+
+  # macOS capture end to end with BlackHole virtual devices (M7). Hosted runners may not grant
+  # the audio permissions; the results say so instead of passing silently.
+  mac-audio:
+    name: mac capture e2e (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15]
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: mac-audio
+      - name: end to end
+        shell: bash
+        env:
+          SD_E2E_RECORD_SECONDS: ${{ contains(github.event.head_commit.message, '[soak]') && '3600' || '120' }}
+        # Result lines are also emitted as annotations, which are readable without logging in.
+        run: |
+          set +e
+          bash tools/ci/mac-audio-e2e.sh 2>&1 | tee e2e.log
+          status=${PIPESTATUS[0]}
+          grep -E "^(mic|tap|30 s|switch|output switch|tap after switch): |^e2e: " e2e.log | head -10 | cut -c1-300 | while IFS= read -r l; do echo "::notice::$l"; done
+          grep -E "^test .* \.\.\. |panicked at|assertion" e2e.log | head -10 | cut -c1-300 | while IFS= read -r l; do echo "::warning::$l"; done
+          grep -E "the tap delivered|could not start|signal not found|not found among|event not seen|player ran dry|^e2e: too many" e2e.log | head -10 | cut -c1-300 | while IFS= read -r l; do echo "::error::$l"; done
+          exit $status
+      - name: recording summary
+        if: always()
+        shell: bash
+        run: |
+          [ -f target/e2e-rec.log ] || exit 0
+          grep -E "journal|clock drift|verdict|processing:" target/e2e-rec.log | head -10 | cut -c1-330 | while IFS= read -r l; do echo "::notice::$l"; done
+          grep -E "^record: switch events" e2e.log | while IFS= read -r l; do echo "::notice::$l"; done
+
+  # The SDK from C, Python and Node on every OS (M8). Linux also records, from a PulseAudio
+  # virtual device; Windows and macOS runners have no usable audio devices without setup.
+  sdk:
+    name: sdk (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: sdk
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: whisper.cpp build environment (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin' >> $GITHUB_ENV
+          echo 'CMAKE_C_FLAGS_RELEASE=-O2 -Ob2 -DNDEBUG -nologo -MD -Brepro -W0' >> $GITHUB_ENV
+          echo 'CMAKE_CXX_FLAGS_RELEASE=-O2 -Ob2 -DNDEBUG -utf-8 -nologo -MD -Brepro -W0' >> $GITHUB_ENV
+      - name: sound server (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpulse-dev pulseaudio pulseaudio-utils
+          pulseaudio --daemonize=yes --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=sdk_speaker
+          pactl load-module module-null-sink sink_name=sdk_mic_feed
+          pactl load-module module-remap-source master=sdk_mic_feed.monitor source_name=sdk_mic
+          pactl set-default-sink sdk_speaker
+          pactl set-default-source sdk_mic
+      - name: build the C library and the Node addon
+        run: cargo build --release --locked -p sonicdiar-ffi -p sonicdiar-node
+      - name: C
+        shell: bash
+        run: |
+          inc=crates/sd-ffi/include src=crates/sd-ffi/examples/smoke.c lib=target/release
+          case "$RUNNER_OS" in
+            Windows)
+              clang "$src" -I "$inc" "$lib/sonicdiar.dll.lib" -o smoke.exe
+              cp "$lib/sonicdiar.dll" .
+              ./smoke.exe ;;
+            Linux)
+              cc "$src" -I "$inc" -L "$lib" -lsonicdiar -Wl,-rpath,"$PWD/$lib" -o smoke
+              ./smoke record ;;
+            macOS)
+              cc "$src" -I "$inc" -L "$lib" -lsonicdiar -Wl,-rpath,"$PWD/$lib" -o smoke
+              ./smoke ;;
+          esac
+      - name: Python
+        shell: bash
+        run: |
+          pip install "maturin>=1.7,<2"
+          # Linux: libpulse is the system's (LGPL, never bundled), so the wheel is tagged
+          # linux_x86_64 rather than manylinux.
+          extra=""; [ "$RUNNER_OS" = Linux ] && extra="--compatibility linux"
+          maturin build --release --locked -m bindings/python/Cargo.toml -o dist $extra
+          pip install dist/*.whl
+          rec=""; [ "$RUNNER_OS" = Linux ] && rec="--record"
+          python bindings/python/tests/smoke.py $rec
+      - name: Node
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) f=sonicdiar_node.dll; p=win32-x64 ;;
+            Linux) f=libsonicdiar_node.so; p=linux-x64 ;;
+            macOS) f=libsonicdiar_node.dylib; p=darwin-arm64 ;;
+          esac
+          mkdir -p bindings/node/prebuilds
+          cp "target/release/$f" "bindings/node/prebuilds/sonicdiar.$p.node"
+          rec=""; [ "$RUNNER_OS" = Linux ] && rec="--record"
+          node bindings/node/test/smoke.js $rec
+
+  # Only permissive licences in what ships (deny.toml).
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - run: cargo deny --locked check licenses bans sources

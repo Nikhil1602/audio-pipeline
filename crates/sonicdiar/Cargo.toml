@@ -1,0 +1,38 @@
+[package]
+name = "sonicdiar"
+description = "Meeting audio capture SDK: mic and system audio, echo cancellation, live transcription, speaker labels"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Whisper on the GPU through Vulkan (Windows/Linux); needs the Vulkan SDK to build.
+vulkan = ["sd-asr/vulkan"]
+
+[dependencies]
+sd-core.workspace = true
+sd-capture.workspace = true
+sd-engine.workspace = true
+sd-dsp.workspace = true
+sd-asr = { workspace = true, features = ["whisper", "indic"] }
+sd-vad = { path = "../sd-vad" }
+sd-diar = { path = "../sd-diar" }
+serde.workspace = true
+crossbeam-channel.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+ureq = "3.4"
+sha2 = "0.11"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+flate2 = "1.1"
+tar = "0.4"
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true
